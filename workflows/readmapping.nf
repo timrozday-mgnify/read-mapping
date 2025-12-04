@@ -54,12 +54,12 @@ workflow READMAPPING {
     }
     else {
         input_reads = reads.map{ meta, reads_ ->
-            [meta, (reads_.size()==1) ? reads_[0] : reads_]
+            [meta, (reads_.size()==1) ? reads_[0] : reads_, []]
         }
 
         FASTP(
             input_reads,
-            [],
+            false,
             false,
             false,
         )
