@@ -33,8 +33,12 @@
                 "exists": true,
                 "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.fn?(ast)?a(\\.gz)?$",
                 "errorMessage": "FASTA file for sample assembly cannot contain spaces and must have extension '.fa', '.fna' or '.fasta', and may have '.gz' after this."
+            },
+            "single_end": {
+                "type": "boolean",
+                "errorMessage": "Single end is either 'true' (if reads are single-end) or 'false (if reads are paired-end)'."
             }
         },
-        "required": ["sample", "fastq_1", "fasta"]
+        "required": ["sample", "fastq_1", "fasta", "single_end"]
     }
 }
