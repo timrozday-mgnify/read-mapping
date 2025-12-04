@@ -116,7 +116,7 @@ workflow READMAPPING {
             index: [[id: meta.db_id], index]
             fasta: [[id: meta.db_id], fasta]
         }
-    BWAMEM2_MEM(mapping_ch.reads, mapping_ch.index, mapping_ch.fasta)
+    BWAMEM2_MEM(mapping_ch.reads, mapping_ch.index, mapping_ch.fasta, false)
 
 
     emit:
