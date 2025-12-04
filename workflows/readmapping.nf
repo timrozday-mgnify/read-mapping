@@ -29,10 +29,11 @@ workflow READMAPPING {
                     single_end: single_end,
                     interleaved: (!single_end) && single_file,
                 ],
-                single_file ? [file(fq1)] : [file(fq1), file(fq2)],
-                file(fasta)
+                single_file ? [fq1] : [fq1, fq2],
+                fasta
             ]
         }
+    samplesheet.view{ it -> "samplesheet - ${it}" }
 
     ch_versions = channel.empty()
 
