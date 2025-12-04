@@ -100,9 +100,9 @@ workflow READMAPPING {
 
 
     // Run mapping
-    assembly_mapping_ch = BWAMEM2_INDEX.out.index
-        .join(fasta_ch)
-        .join(qc_reads)
+    assembly_mapping_ch = BWAMEM2_INDEX.out.index.map{ meta, index -> [[id: meta.id], index] }
+        .join(fasta_ch.map{ meta, fasta -> [[id: meta.id], fasta] })
+        .join(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
         .map { meta, index, fasta, reads_ -> [meta + [db_id: 'assembly'], reads_, index, fasta] }
     assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
         
