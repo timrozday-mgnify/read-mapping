@@ -104,13 +104,13 @@ workflow READMAPPING {
         .join(fasta_ch.map{ meta, fasta -> [[id: meta.id], fasta] })
         .join(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
         .map { meta, index, fasta, reads_ -> [meta + [db_id: 'assembly'], reads_, index, fasta] }
-    assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
+    // assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
         
-    bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [files("${meta.files.index}.*"), file(meta.files.fasta)]] }
+    bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [file(meta.files.index), file(meta.files.fasta)]] }
     db_mapping_ch = qc_reads
         .combine(bwa_index_ch)
         .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db[0], db[1]] }
-    db_mapping_ch.view{ it -> "db_mapping_ch — ${it}" }
+    // db_mapping_ch.view{ it -> "db_mapping_ch — ${it}" }
 
     mapping_ch = assembly_mapping_ch.mix(db_mapping_ch)
         .multiMap{ meta, reads_, index, fasta ->
