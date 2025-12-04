@@ -9,8 +9,8 @@ process BWAMEM2_MEM {
 
     input:
     tuple val(meta), path(reads)
-    tuple val(meta2), path(index)
-    tuple val(meta3), path(fasta)
+    tuple val(meta2), path(index, stageAs: 'index/*')
+    tuple val(meta3), path(fasta, stageAs: 'fasta/*')
     val   sort_bam
 
     output:
