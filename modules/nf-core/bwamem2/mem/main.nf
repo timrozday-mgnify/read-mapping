@@ -37,7 +37,7 @@ process BWAMEM2_MEM {
     if (!fasta && extension=="cram") error "Fasta reference is required for CRAM output"
 
     """
-    INDEX=`find -L ./ -name "*.amb" | sed 's/\\.amb\$//'`
+    INDEX=`find -L ./index -name "*.amb" | sed 's/\\.amb\$//'`
 
     bwa-mem2 \\
         mem \\
