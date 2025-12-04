@@ -1,115 +1,121 @@
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-include { FASTQC                 } from '../modules/nf-core/fastqc/main'
-include { MULTIQC                } from '../modules/nf-core/multiqc/main'
-include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_readmapping_pipeline'
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RUN MAIN WORKFLOW
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
+include { FASTP                      } from '../modules/nf-core/fastp/main'
+include { BWAMEM2_MEM                } from '../modules/nf-core/bwamem2/mem/main'
+include { BWAMEM2_INDEX              } from '../modules/nf-core/bwamem2/index/main'
+include { BBMAP_REFORMAT_STANDARDISE } from '../modules/local/bbmap/reformat_standardise/main'
+include { samplesheetToList          } from 'plugin/nf-schema'
 
 workflow READMAPPING {
-
-    take:
-    ch_samplesheet // channel: samplesheet read in from --input
     main:
+    // Parse databases from parameters
+    bwa_db_ch = channel
+        .from(
+            params.databases.collect { k, v ->
+                if (v instanceof Map) {
+                    if (v.containsKey('files')) {
+                        return [id: k] + v
+                    }
+                }
+            }.flatten()
+        )
+        .filter { it -> it }
+
+    // Parse samplesheet and fetch reads
+    samplesheet = channel.fromList(samplesheetToList(params.samplesheet, "${workflow.projectDir}/assets/schema_input.json"))
+        .map { sample, fq1, fq2, fasta, single_end ->
+            def single_file = (fq2 == [])
+            [
+                [
+                    id: sample,
+                    single_end: single_end,
+                    interleaved: (!single_end) && single_file,
+                ],
+                single_file ? [file(fq1)] : [file(fq1), file(fq2)],
+                file(fasta)
+            ]
+        }
 
     ch_versions = channel.empty()
-    ch_multiqc_files = channel.empty()
-    //
-    // MODULE: Run FastQC
-    //
-    FASTQC (
-        ch_samplesheet
+
+
+    // De-interleave interleaved paired-end reads
+    BBMAP_REFORMAT_STANDARDISE(
+        samplesheet.map{ meta, reads, _fasta -> [meta, reads] }, 
+        'fastq.gz'
     )
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
-    ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+    reads = BBMAP_REFORMAT_STANDARDISE.out.reformated
 
-    //
-    // Collate and save software versions
-    //
-    def topic_versions = Channel.topic("versions")
-        .distinct()
-        .branch { entry ->
-            versions_file: entry instanceof Path
-            versions_tuple: true
+    // QC
+    if (params.skip_qc) {
+        reads.set { qc_reads }
+        qc_stats = channel.empty()
+    }
+    else {
+        input_reads = reads.map{ meta, reads_ ->
+            [meta, (reads_.size()==1) ? reads_[0] : reads_]
         }
 
-    def topic_versions_string = topic_versions.versions_tuple
-        .map { process, tool, version ->
-            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
-        }
-        .groupTuple(by:0)
-        .map { process, tool_versions ->
-            tool_versions.unique().sort()
-            "${process}:\n${tool_versions.join('\n')}"
-        }
-
-    softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
-        .mix(topic_versions_string)
-        .collectFile(
-            storeDir: "${params.outdir}/pipeline_info",
-            name: 'nf_core_'  +  'readmapping_software_'  + 'mqc_'  + 'versions.yml',
-            sort: true,
-            newLine: true
-        ).set { ch_collated_versions }
-
-
-    //
-    // MODULE: MultiQC
-    //
-    ch_multiqc_config        = channel.fromPath(
-        "$projectDir/assets/multiqc_config.yml", checkIfExists: true)
-    ch_multiqc_custom_config = params.multiqc_config ?
-        channel.fromPath(params.multiqc_config, checkIfExists: true) :
-        channel.empty()
-    ch_multiqc_logo          = params.multiqc_logo ?
-        channel.fromPath(params.multiqc_logo, checkIfExists: true) :
-        channel.empty()
-
-    summary_params      = paramsSummaryMap(
-        workflow, parameters_schema: "nextflow_schema.json")
-    ch_workflow_summary = channel.value(paramsSummaryMultiqc(summary_params))
-    ch_multiqc_files = ch_multiqc_files.mix(
-        ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-    ch_multiqc_custom_methods_description = params.multiqc_methods_description ?
-        file(params.multiqc_methods_description, checkIfExists: true) :
-        file("$projectDir/assets/methods_description_template.yml", checkIfExists: true)
-    ch_methods_description                = channel.value(
-        methodsDescriptionText(ch_multiqc_custom_methods_description))
-
-    ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-    ch_multiqc_files = ch_multiqc_files.mix(
-        ch_methods_description.collectFile(
-            name: 'methods_description_mqc.yaml',
-            sort: true
+        FASTP(
+            input_reads,
+            [],
+            false,
+            false,
+            false,
         )
-    )
+        ch_versions = ch_versions.mix(FASTP.out.versions)
 
-    MULTIQC (
-        ch_multiqc_files.collect(),
-        ch_multiqc_config.toList(),
-        ch_multiqc_custom_config.toList(),
-        ch_multiqc_logo.toList(),
-        [],
-        []
-    )
+        qc_reads = FASTP.out.reads.map{ meta, reads_ ->
+            [meta, (reads_ instanceof Collection) ? reads_ : [reads_]]
+        }
+        qc_stats = FASTP.out.json
 
-    emit:multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
-    versions       = ch_versions                 // channel: [ path(versions.yml) ]
+        qc_read_counts = qc_stats.map {
+            meta, json_file ->
+            def json = new groovy.json.JsonSlurper().parseText(json_file.text)
+            return tuple(
+                meta,
+                tuple(
+                    json["summary"]["before_filtering"]["total_reads"],
+                    json["summary"]["after_filtering"]["total_reads"],
+                )
+            )
+        }
 
+        qc_reads = qc_reads.join(qc_read_counts)
+            .map{ meta, reads_, counts ->
+                tuple(
+                    meta + ['read_count': counts[0], 'qc_read_count': counts[1]],
+                    reads_
+                )
+            }
+            .filter{ meta, _reads -> meta.qc_read_count > 0 }
+    }
+    
+
+    // Generate BWA-MEM2 indexes from FASTA files
+    fasta_ch = samplesheet.map{ meta, _reads, fasta -> [meta, fasta] }
+    BWAMEM2_INDEX( fasta_ch )
+
+
+    // Run mapping
+    assembly_mapping_ch = BWAMEM2_INDEX.out.index
+        .join(fasta_ch)
+        .join(qc_reads)
+        .map { meta, index, fasta, reads_ -> [meta + [db_id: 'assembly'], reads_, index, fasta] }
+        
+    bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [file(meta.files.index), file(meta.files.fasta)]] }
+    db_mapping_ch = qc_reads
+        .combine(bwa_index_ch)
+        .map { reads_, db -> [reads_[0] + [db_id: db[0].id], reads_[1], db[1][0], db[1][1]] }
+
+    mapping_ch = assembly_mapping_ch.mix(db_mapping_ch)
+        .multiMap{ meta, reads_, index, fasta ->
+            reads: [meta, reads_]
+            index: [[id: meta.db_id], index]
+            fasta: [[id: meta.db_id], fasta]
+        }
+    BWAMEM2_MEM(mapping_ch.reads, mapping_ch.index, mapping_ch.fasta)
+
+
+    emit:
+    versions = ch_versions                 // channel: [ path(versions.yml) ]
 }
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
