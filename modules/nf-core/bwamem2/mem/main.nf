@@ -9,8 +9,8 @@ process BWAMEM2_MEM {
 
     input:
     tuple val(meta), path(reads)
-    tuple val(meta2), path(index, stageAs: 'index/*')
-    tuple val(meta3), path(fasta, stageAs: 'fasta/*')
+    tuple val(meta2), path(index)
+    tuple val(meta3), path(fasta)
     val   sort_bam
 
     output:
@@ -37,7 +37,7 @@ process BWAMEM2_MEM {
     if (!fasta && extension=="cram") error "Fasta reference is required for CRAM output"
 
     """
-    INDEX=`find -L ./index -name "*.amb" | sed 's/\\.amb\$//'`
+    INDEX=`find -L ./ -name "*.amb" | sed 's/\\.amb\$//'`
 
     bwa-mem2 \\
         mem \\

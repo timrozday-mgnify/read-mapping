@@ -18,7 +18,7 @@ workflow READMAPPING {
             }.flatten()
         )
         .filter { it -> it }
-    bwa_db_ch.view{ it -> "bwa_db_ch — ${it}" }
+    // bwa_db_ch.view{ it -> "bwa_db_ch — ${it}" }
 
     // Parse samplesheet and fetch reads
     samplesheet = channel.fromList(samplesheetToList(params.input, "${workflow.projectDir}/assets/schema_input.json"))
@@ -34,7 +34,7 @@ workflow READMAPPING {
                 file(fasta)
             ]
         }
-    samplesheet.view{ it -> "samplesheet — ${it}" }
+    // samplesheet.view{ it -> "samplesheet — ${it}" }
 
     ch_versions = channel.empty()
 
@@ -95,7 +95,7 @@ workflow READMAPPING {
 
     // Generate BWA-MEM2 indexes from FASTA files
     fasta_ch = samplesheet.map{ meta, _reads, fasta -> [meta, fasta] }
-    fasta_ch.view{ it -> "fasta_ch — ${it}" }
+    // fasta_ch.view{ it -> "fasta_ch — ${it}" }
     BWAMEM2_INDEX( fasta_ch )
 
 
@@ -106,7 +106,7 @@ workflow READMAPPING {
         .map { meta, index, fasta, reads_ -> [meta + [db_id: 'assembly'], reads_, index, fasta] }
     assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
         
-    bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [file(meta.files.index), file(meta.files.fasta)]] }
+    bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [files("${meta.files.index}.*"), file(meta.files.fasta)]] }
     db_mapping_ch = qc_reads
         .combine(bwa_index_ch)
         .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db[0], db[1]] }
