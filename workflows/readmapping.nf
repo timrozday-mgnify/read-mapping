@@ -109,7 +109,7 @@ workflow READMAPPING {
     bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [file(meta.files.index), file(meta.files.fasta)]] }
     db_mapping_ch = qc_reads
         .combine(bwa_index_ch)
-        .map { reads_, db -> [reads_[0] + [db_id: db[0].id], reads_[1], db[1][0], db[1][1]] }
+        .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db[0], db[1]] }
     db_mapping_ch.view{ it -> "db_mapping_ch — ${it}" }
 
     mapping_ch = assembly_mapping_ch.mix(db_mapping_ch)
