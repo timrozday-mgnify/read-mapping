@@ -45,6 +45,7 @@ workflow READMAPPING {
         'fastq.gz'
     )
     reads = BBMAP_REFORMAT_STANDARDISE.out.reformated
+        .map { it -> [it.head(), it.tail()] }
 
     // QC
     if (params.skip_qc) {
