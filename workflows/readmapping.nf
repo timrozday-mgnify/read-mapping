@@ -20,7 +20,7 @@ workflow READMAPPING {
         .filter { it -> it }
 
     // Parse samplesheet and fetch reads
-    samplesheet = channel.fromList(samplesheetToList(params.samplesheet, "${workflow.projectDir}/assets/schema_input.json"))
+    samplesheet = channel.fromList(samplesheetToList(params.input, "${workflow.projectDir}/assets/schema_input.json"))
         .map { sample, fq1, fq2, fasta, single_end ->
             def single_file = (fq2 == [])
             [
@@ -29,8 +29,8 @@ workflow READMAPPING {
                     single_end: single_end,
                     interleaved: (!single_end) && single_file,
                 ],
-                single_file ? [fq1] : [fq1, fq2],
-                fasta
+                single_file ? [file(fq1)] : [file(fq1), file(fq2)],
+                file(fasta)
             ]
         }
     samplesheet.view{ it -> "samplesheet - ${it}" }
