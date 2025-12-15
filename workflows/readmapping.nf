@@ -1,6 +1,7 @@
 include { FASTP                      } from '../modules/nf-core/fastp/main'
 include { BWAMEM2_MEM                } from '../modules/nf-core/bwamem2/mem/main'
 include { BWAMEM2_INDEX              } from '../modules/nf-core/bwamem2/index/main'
+include { BBMAP_ALIGN                } from '../modules/nf-core/bbmap/align/main'
 include { BBMAP_REFORMAT_STANDARDISE } from '../modules/local/bbmap/reformat_standardise/main'
 include { samplesheetToList          } from 'plugin/nf-schema'
 
@@ -93,32 +94,48 @@ workflow READMAPPING {
     }
     
 
-    // Generate BWA-MEM2 indexes from FASTA files
-    fasta_ch = samplesheet.map{ meta, _reads, fasta -> [meta, fasta] }
-    // fasta_ch.view{ it -> "fasta_ch — ${it}" }
-    BWAMEM2_INDEX( fasta_ch )
+    if (params.use_bbmap) {
+        assembly_mapping_ch = samplesheet.map{ meta, _reads, fasta -> [[id: meta.id], fasta] }
+            .join(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
+            .map { meta, fasta, reads_ -> [meta + [db_id: "${meta.id}_assembly"], reads_, fasta] }
+        db_mapping_ch = qc_reads
+            .combine(bwa_db_ch.map{ meta -> [meta, file(meta.files.fasta)] })
+            .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db] }
+        mapping_ch = assembly_mapping_ch.mix(db_mapping_ch)
+            .multiMap{ meta, reads_, fasta ->
+                reads: [meta, reads_]
+                fasta: [[id: meta.db_id], fasta]
+            }
+        BBMAP_ALIGN(mapping_ch.reads, mapping_ch.fasta)
+    } 
+    if (params.use_bwamem2) {
+        // Generate BWA-MEM2 indexes from FASTA files
+        fasta_ch = samplesheet.map{ meta, _reads, fasta -> [meta, fasta] }
+        // fasta_ch.view{ it -> "fasta_ch — ${it}" }
+        BWAMEM2_INDEX( fasta_ch )
 
 
-    // Run mapping
-    assembly_mapping_ch = BWAMEM2_INDEX.out.index.map{ meta, index -> [[id: meta.id], index] }
-        .join(fasta_ch.map{ meta, fasta -> [[id: meta.id], fasta] })
-        .join(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
-        .map { meta, index, fasta, reads_ -> [meta + [db_id: 'assembly'], reads_, index, fasta] }
-    // assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
-        
-    bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [file(meta.files.index), file(meta.files.fasta)]] }
-    db_mapping_ch = qc_reads
-        .combine(bwa_index_ch)
-        .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db[0], db[1]] }
-    // db_mapping_ch.view{ it -> "db_mapping_ch — ${it}" }
+        // Run mapping
+        assembly_mapping_ch = BWAMEM2_INDEX.out.index.map{ meta, index -> [[id: meta.id], index] }
+            .join(fasta_ch.map{ meta, fasta -> [[id: meta.id], fasta] })
+            .join(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
+            .map { meta, index, fasta, reads_ -> [meta + [db_id: "${meta.id}_assembly"], reads_, index, fasta] }
+        // assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
+            
+        bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [file(meta.files.index), file(meta.files.fasta)]] }
+        db_mapping_ch = qc_reads
+            .combine(bwa_index_ch)
+            .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db[0], db[1]] }
+        // db_mapping_ch.view{ it -> "db_mapping_ch — ${it}" }
 
-    mapping_ch = assembly_mapping_ch.mix(db_mapping_ch)
-        .multiMap{ meta, reads_, index, fasta ->
-            reads: [meta, reads_]
-            index: [[id: meta.db_id], index]
-            fasta: [[id: meta.db_id], fasta]
-        }
-    BWAMEM2_MEM(mapping_ch.reads, mapping_ch.index, mapping_ch.fasta, false)
+        mapping_ch = assembly_mapping_ch.mix(db_mapping_ch)
+            .multiMap{ meta, reads_, index, fasta ->
+                reads: [meta, reads_]
+                index: [[id: meta.db_id], index]
+                fasta: [[id: meta.db_id], fasta]
+            }
+        BWAMEM2_MEM(mapping_ch.reads, mapping_ch.index, mapping_ch.fasta, false)
+    }
 
 
     emit:
