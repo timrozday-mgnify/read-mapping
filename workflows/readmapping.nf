@@ -95,18 +95,18 @@ workflow READMAPPING {
     
 
     if (params.use_bbmap) {
-        assembly_mapping_ch = samplesheet.map{ meta, _reads, fasta -> [[id: meta.id], fasta] }
+        bbmap_assembly_mapping_ch = samplesheet.map{ meta, _reads, fasta -> [[id: meta.id], fasta] }
             .join(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
             .map { meta, fasta, reads_ -> [meta + [db_id: "${meta.id}_assembly"], reads_, fasta] }
-        db_mapping_ch = qc_reads
+        bbmap_db_mapping_ch = qc_reads
             .combine(bwa_db_ch.map{ meta -> [meta, file(meta.files.fasta)] })
             .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db] }
-        mapping_ch = assembly_mapping_ch.mix(db_mapping_ch)
+        bbmap_mapping_ch = bbmap_assembly_mapping_ch.mix(bbmap_db_mapping_ch)
             .multiMap{ meta, reads_, fasta ->
                 reads: [meta, reads_]
                 fasta: [[id: meta.db_id], fasta]
             }
-        BBMAP_ALIGN(mapping_ch.reads, mapping_ch.fasta)
+        BBMAP_ALIGN(bbmap_mapping_ch.reads, bbmap_mapping_ch.fasta)
     } 
     if (params.use_bwamem2) {
         // Generate BWA-MEM2 indexes from FASTA files
