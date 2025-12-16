@@ -118,13 +118,13 @@ workflow READMAPPING {
         assembly_mapping_ch = BWAMEM2_INDEX.out.index.map{ meta, index -> [[id: meta.id], index] }
             .join(fasta_ch.map{ meta, fasta -> [[id: meta.id], fasta] })
             .combine(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
-            .map { db_meta, db, reads_meta, reads_ -> [reads_meta + [db_id: "${db_meta.id}_assembly"], reads_, db[0], db[1]] }
+            .map { db_meta, index, fasta, reads_meta, reads_ -> [reads_meta + [db_id: "${db_meta.id}_assembly"], reads_, index, fasta] }
         // assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
             
-        bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [file(meta.files.index), file(meta.files.fasta)]] }
+        bwa_index_ch = bwa_db_ch.map{ meta -> [meta, file(meta.files.index), file(meta.files.fasta)] }
         db_mapping_ch = qc_reads
             .combine(bwa_index_ch)
-            .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db[0], db[1]] }
+            .map { reads_meta, reads_, db_meta, index, fasta -> [reads_meta + [db_id: db_meta.id], reads_, index, fasta] }
         // db_mapping_ch.view{ it -> "db_mapping_ch — ${it}" }
 
         mapping_ch = assembly_mapping_ch.mix(db_mapping_ch)
