@@ -104,7 +104,7 @@ workflow READMAPPING {
         bbmap_mapping_ch = bbmap_assembly_mapping_ch.mix(bbmap_db_mapping_ch)
             .multiMap{ meta, reads_, fasta ->
                 reads: [meta, reads_]
-                fasta: [[id: meta.db_id], fasta]
+                fasta: fasta
             }
         BBMAP_ALIGN(bbmap_mapping_ch.reads, bbmap_mapping_ch.fasta)
     } 
