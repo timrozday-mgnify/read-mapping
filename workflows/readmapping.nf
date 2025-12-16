@@ -96,8 +96,8 @@ workflow READMAPPING {
 
     if (params.use_bbmap) {
         bbmap_assembly_mapping_ch = samplesheet.map{ meta, _reads, fasta -> [[id: meta.id], fasta] }
-            .join(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
-            .map { meta, fasta, reads_ -> [meta + [db_id: "${meta.id}_assembly"], reads_, fasta] }
+            .combine(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
+            .map { db_meta, fasta, reads_meta, reads_ -> [reads_meta + [db_id: "${db_meta.id}_assembly"], reads_, fasta] }
         bbmap_db_mapping_ch = qc_reads
             .combine(bwa_db_ch.map{ meta -> [meta, file(meta.files.fasta)] })
             .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db] }
@@ -114,12 +114,11 @@ workflow READMAPPING {
         // fasta_ch.view{ it -> "fasta_ch — ${it}" }
         BWAMEM2_INDEX( fasta_ch )
 
-
         // Run mapping
         assembly_mapping_ch = BWAMEM2_INDEX.out.index.map{ meta, index -> [[id: meta.id], index] }
             .join(fasta_ch.map{ meta, fasta -> [[id: meta.id], fasta] })
-            .join(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
-            .map { meta, index, fasta, reads_ -> [meta + [db_id: "${meta.id}_assembly"], reads_, index, fasta] }
+            .combine(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
+            .map { db_meta, db, reads_meta, reads_ -> [reads_meta + [db_id: "${db_meta.id}_assembly"], reads_, db[0], db[1]] }
         // assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
             
         bwa_index_ch = bwa_db_ch.map{ meta -> [meta, [file(meta.files.index), file(meta.files.fasta)]] }
