@@ -10,6 +10,20 @@ include { samplesheetToList          } from 'plugin/nf-schema'
 
 workflow READMAPPING {
     main:
+    // Parse databases from parameters
+    db_ch = channel
+        .from(
+            params.databases.collect { k, v ->
+                if (v instanceof Map) {
+                    if (v.containsKey('files')) {
+                        return [id: k] + v
+                    }
+                }
+            }.flatten()
+        )
+        .filter { it -> it }
+    // db_ch.view{ it -> "db_ch — ${it}" }
+
     // Parse samplesheet and fetch reads
     samplesheet = channel.fromList(samplesheetToList(params.input, "${workflow.projectDir}/assets/schema_input.json"))
         .map { sample, fq1, fq2, fasta, single_end ->
@@ -88,7 +102,7 @@ workflow READMAPPING {
             .combine(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
             .map { db_meta, fasta, reads_meta, reads_ -> [reads_meta + [db_id: "${db_meta.id}_assembly"], reads_, fasta] }
         bbmap_db_mapping_ch = qc_reads
-            .combine(bwa_db_ch.map{ meta -> [meta, file(meta.files.fasta)] })
+            .combine(db_ch.map{ meta -> [meta, file(meta.files.fasta)] })
             .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db] }
         bbmap_mapping_ch = bbmap_assembly_mapping_ch.mix(bbmap_db_mapping_ch)
             .multiMap{ meta, reads_, fasta ->
@@ -103,7 +117,7 @@ workflow READMAPPING {
             .combine(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
             .map { db_meta, fasta, reads_meta, reads_ -> [reads_meta + [db_id: "${db_meta.id}_assembly"], reads_, fasta] }
         minimap_db_mapping_ch = qc_reads
-            .combine(bwa_db_ch.map{ meta -> [meta, file(meta.files.fasta)] })
+            .combine(db_ch.map{ meta -> [meta, file(meta.files.fasta)] })
             .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db] }
         minimap_mapping_ch = minimap_assembly_mapping_ch.mix(minimap_db_mapping_ch)
             .multiMap{ meta, reads_, fasta ->
