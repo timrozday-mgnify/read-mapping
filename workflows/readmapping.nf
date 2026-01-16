@@ -122,7 +122,7 @@ workflow READMAPPING {
         minimap_mapping_ch = minimap_assembly_mapping_ch.mix(minimap_db_mapping_ch)
             .multiMap{ meta, reads_, fasta ->
                 reads: [meta, reads_]
-                fasta: fasta
+                fasta: [[id: meta.db_id], fasta]
             }
         MINIMAP2_ALIGN(minimap_mapping_ch.reads, minimap_mapping_ch.fasta, true, false, false, false)
     } 
