@@ -1,6 +1,9 @@
 include { FASTP                      } from '../modules/nf-core/fastp/main'
 include { BWAMEM2_MEM                } from '../modules/nf-core/bwamem2/mem/main'
 include { BWAMEM2_INDEX              } from '../modules/nf-core/bwamem2/index/main'
+include { MINIMAP2_ALIGN             } from '../modules/nf-core/minimap2/align/main'
+include { BOWTIE2_BUILD              } from '../modules/nf-core/bowtie2/build/main'
+include { BOWTIE2_ALIGN              } from '../modules/nf-core/bowtie2/align/main'
 include { BBMAP_ALIGN                } from '../modules/nf-core/bbmap/align/main'
 include { BBMAP_REFORMAT_STANDARDISE } from '../modules/local/bbmap/reformat_standardise/main'
 include { samplesheetToList          } from 'plugin/nf-schema'
@@ -10,7 +13,7 @@ workflow READMAPPING {
     // Parse databases from parameters
     bwa_db_ch = channel
         .from(
-            params.databases.collect { k, v ->
+            params.bwa_databases.collect { k, v ->
                 if (v instanceof Map) {
                     if (v.containsKey('files')) {
                         return [id: k] + v
@@ -20,6 +23,19 @@ workflow READMAPPING {
         )
         .filter { it -> it }
     // bwa_db_ch.view{ it -> "bwa_db_ch — ${it}" }
+
+    bowtie_db_ch = channel
+        .from(
+            params.bowtie_databases.collect { k, v ->
+                if (v instanceof Map) {
+                    if (v.containsKey('files')) {
+                        return [id: k] + v
+                    }
+                }
+            }.flatten()
+        )
+        .filter { it -> it }
+    // bowtie_db_ch.view{ it -> "bowtie_db_ch — ${it}" }
 
     // Parse samplesheet and fetch reads
     samplesheet = channel.fromList(samplesheetToList(params.input, "${workflow.projectDir}/assets/schema_input.json"))
@@ -108,11 +124,55 @@ workflow READMAPPING {
             }
         BBMAP_ALIGN(bbmap_mapping_ch.reads, bbmap_mapping_ch.fasta)
     } 
+
+    if (params.use_minimap2) {
+        minimap_assembly_mapping_ch = samplesheet.map{ meta, _reads, fasta -> [[id: meta.id], fasta] }
+            .combine(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
+            .map { db_meta, fasta, reads_meta, reads_ -> [reads_meta + [db_id: "${db_meta.id}_assembly"], reads_, fasta] }
+        minimap_db_mapping_ch = qc_reads
+            .combine(bwa_db_ch.map{ meta -> [meta, file(meta.files.fasta)] })
+            .map { reads_meta, reads_, db_meta, db -> [reads_meta + [db_id: db_meta.id], reads_, db] }
+        minimap_mapping_ch = minimap_assembly_mapping_ch.mix(minimap_db_mapping_ch)
+            .multiMap{ meta, reads_, fasta ->
+                reads: [meta, reads_]
+                fasta: fasta
+            }
+        MINIMAP2_ALIGN(minimap_mapping_ch.reads, minimap_mapping_ch.fasta, true, false, false, false)
+    } 
+
+    if (params.use_bowtie2) {
+        // Generate BWA-MEM2 indexes from FASTA files
+        fasta_ch = samplesheet.map{ meta, _reads, fasta -> [meta, fasta] }
+        // fasta_ch.view{ it -> "fasta_ch — ${it}" }
+        BOWTIE2_BUILD(fasta_ch)
+
+        // Run mapping
+        bowtie_assembly_mapping_ch = BOWTIE2_BUILD.out.index.map{ meta, index -> [[id: meta.id], index] }
+            .join(fasta_ch.map{ meta, fasta -> [[id: meta.id], fasta] })
+            .combine(qc_reads.map{ meta, reads_ -> [[id: meta.id], reads_] })
+            .map { db_meta, index, fasta, reads_meta, reads_ -> [reads_meta + [db_id: "${db_meta.id}_assembly"], reads_, index, fasta] }
+        // bowtie_assembly_mapping_ch.view{ it -> "assembly_mapping_ch — ${it}" }
+            
+        bowtie_index_ch = bowtie_db_ch.map{ meta -> [meta, file(meta.files.index), file(meta.files.fasta)] }
+        bowtie_db_mapping_ch = qc_reads
+            .combine(bowtie_index_ch)
+            .map { reads_meta, reads_, db_meta, index, fasta -> [reads_meta + [db_id: db_meta.id], reads_, index, fasta] }
+        // bowtie_db_mapping_ch.view{ it -> "db_mapping_ch — ${it}" }
+
+        bowtie_mapping_ch = bowtie_assembly_mapping_ch.mix(bowtie_db_mapping_ch)
+            .multiMap{ meta, reads_, index, fasta ->
+                reads: [meta, reads_]
+                index: [[id: meta.db_id], index]
+                fasta: [[id: meta.db_id], fasta]
+            }
+        BOWTIE2_ALIGN(bowtie_mapping_ch.reads, bowtie_mapping_ch.index, bowtie_mapping_ch.fasta, false, false)
+    }
+
     if (params.use_bwamem2) {
         // Generate BWA-MEM2 indexes from FASTA files
         fasta_ch = samplesheet.map{ meta, _reads, fasta -> [meta, fasta] }
         // fasta_ch.view{ it -> "fasta_ch — ${it}" }
-        BWAMEM2_INDEX( fasta_ch )
+        BWAMEM2_INDEX(fasta_ch)
 
         // Run mapping
         assembly_mapping_ch = BWAMEM2_INDEX.out.index.map{ meta, index -> [[id: meta.id], index] }
