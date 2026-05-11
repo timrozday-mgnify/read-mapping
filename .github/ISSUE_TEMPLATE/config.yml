@@ -4,4 +4,4 @@ contact_links:
     about: Please join the nf-core community here
   - name: "Slack #readmapping channel"
     url: https://nfcore.slack.com/channels/readmapping
-    about: Discussion about the nf-core/readmapping pipeline
+    about: Discussion about the read-mapping pipeline

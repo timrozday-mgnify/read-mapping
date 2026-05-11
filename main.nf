@@ -1,11 +1,10 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    nf-core/readmapping
+    read-mapping
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/nf-core/readmapping
-    Website: https://nf-co.re/readmapping
-    Slack  : https://nfcore.slack.com/channels/readmapping
+    Github : https://github.com/timrozday/read-mapping
+    Website: https://github.com/timrozday/read-mapping
 ----------------------------------------------------------------------------------------
 */
 

@@ -1,4 +1,4 @@
-# nf-core/readmapping: Citations
+# read-mapping: Citations
 
 ## [nf-core](https://pubmed.ncbi.nlm.nih.gov/32055031/)
 
@@ -10,13 +10,25 @@
 
 ## Pipeline tools
 
-- [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
+- [BBMap](https://sourceforge.net/projects/bbmap/)
 
-> Andrews, S. (2010). FastQC: A Quality Control Tool for High Throughput Sequence Data [Online].
+  > Bushnell B. BBMap: A Fast, Accurate, Splice-Aware Aligner. Ernest Orlando Lawrence Berkeley National Laboratory, Berkeley, CA (US), 2014.
 
-- [MultiQC](https://pubmed.ncbi.nlm.nih.gov/27312411/)
+- [BWA-MEM2](https://github.com/bwa-mem2/bwa-mem2)
 
-> Ewels P, Magnusson M, Lundin S, Käller M. MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics. 2016 Oct 1;32(19):3047-8. doi: 10.1093/bioinformatics/btw354. Epub 2016 Jun 16. PubMed PMID: 27312411; PubMed Central PMCID: PMC5039924.
+  > Vasimuddin Md, Misra S, Li H, Aluru S. Efficient Architecture-Aware Acceleration of BWA-MEM for Multicore Systems. IEEE Parallel and Distributed Processing Symposium (IPDPS), 2019. doi: 10.1109/IPDPS.2019.00041.
+
+- [Bowtie2](https://pubmed.ncbi.nlm.nih.gov/22388286/)
+
+  > Langmead B, Salzberg SL. Fast gapped-read alignment with Bowtie 2. Nat Methods. 2012 Mar 4;9(4):357-9. doi: 10.1038/nmeth.1923. PubMed PMID: 22388286; PubMed Central PMCID: PMC3322381.
+
+- [Minimap2](https://pubmed.ncbi.nlm.nih.gov/29750242/)
+
+  > Li H. Minimap2: pairwise alignment for nucleotide sequences. Bioinformatics. 2018 Sep 15;34(18):3094-3100. doi: 10.1093/bioinformatics/bty191. PubMed PMID: 29750242; PubMed Central PMCID: PMC6137996.
+
+- [fastp](https://pubmed.ncbi.nlm.nih.gov/30423086/)
+
+  > Chen S, Zhou Y, Chen Y, Gu J. fastp: an ultra-fast all-in-one FASTQ preprocessor. Bioinformatics. 2018 Sep 1;34(17):i884-i890. doi: 10.1093/bioinformatics/bty560. PubMed PMID: 30423086; PubMed Central PMCID: PMC6129281.
 
 ## Software packaging/containerisation tools
 

@@ -1,6 +1,6 @@
 {
-    "name": "nf-core/readmapping",
-    "homePage": "https://github.com/nf-core/readmapping",
+    "name": "read-mapping",
+    "homePage": "https://github.com/timrozday/read-mapping",
     "repos": {
         "https://github.com/nf-core/modules.git": {
             "modules": {
