@@ -8,20 +8,25 @@ include { BBMAP_ALIGN                } from '../modules/nf-core/bbmap/align/main
 include { BBMAP_REFORMAT_STANDARDISE } from '../modules/local/bbmap/reformat_standardise/main'
 include { samplesheetToList          } from 'plugin/nf-schema'
 
+// Parse a database-config map into a channel of valid entries.
+// An entry is valid only when it is a Map whose `files` sub-map contains a
+// non-empty value for every key in `requiredFileKeys`. This drops malformed
+// or stub entries (e.g. defaults like `human`/`tomato` with empty paths)
+// before any downstream `file()` call.
+def databaseChannel(Map dbs, List requiredFileKeys) {
+    channel.fromList(
+        dbs.findAll { k, v ->
+            v instanceof Map &&
+            v.files instanceof Map &&
+            requiredFileKeys.every { key -> v.files[key] }
+        }.collect { k, v -> [id: k] + v }
+    )
+}
+
 workflow READMAPPING {
     main:
-    // Parse databases from parameters
-    db_ch = channel
-        .from(
-            params.databases.collect { k, v ->
-                if (v instanceof Map) {
-                    if (v.containsKey('files')) {
-                        return [id: k] + v
-                    }
-                }
-            }.flatten()
-        )
-        .filter { it -> it }
+    // Parse databases from parameters (BBMap and Minimap2 only consume `fasta`).
+    db_ch = databaseChannel(params.databases, ['fasta'])
     // db_ch.view{ it -> "db_ch — ${it}" }
 
     // Parse samplesheet and fetch reads
@@ -128,18 +133,8 @@ workflow READMAPPING {
     } 
 
     if (params.use_bowtie2) {
-        // Parse databases from parameters
-        bowtie_db_ch = channel
-            .from(
-                params.bowtie_databases.collect { k, v ->
-                    if (v instanceof Map) {
-                        if (v.containsKey('files')) {
-                            return [id: k] + v
-                        }
-                    }
-                }.flatten()
-            )
-            .filter { it -> it }
+        // Parse databases from parameters (Bowtie2 needs both index and fasta).
+        bowtie_db_ch = databaseChannel(params.bowtie_databases, ['index', 'fasta'])
         // bowtie_db_ch.view{ it -> "bowtie_db_ch — ${it}" }
 
         // Generate BWA-MEM2 indexes from FASTA files
@@ -170,18 +165,8 @@ workflow READMAPPING {
     }
 
     if (params.use_bwamem2) {
-        // Parse databases from parameters
-        bwa_db_ch = channel
-            .from(
-                params.bwa_databases.collect { k, v ->
-                    if (v instanceof Map) {
-                        if (v.containsKey('files')) {
-                            return [id: k] + v
-                        }
-                    }
-                }.flatten()
-            )
-            .filter { it -> it }
+        // Parse databases from parameters (BWA-MEM2 needs both index and fasta).
+        bwa_db_ch = databaseChannel(params.bwa_databases, ['index', 'fasta'])
         // bwa_db_ch.view{ it -> "bwa_db_ch — ${it}" }
 
         // Generate BWA-MEM2 indexes from FASTA files
